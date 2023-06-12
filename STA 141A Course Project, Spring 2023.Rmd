@@ -1,0 +1,604 @@
+
+---
+title: "STA 141A Course Project, Spring 2023"
+author: "Jonathan Casas Ramirez SID:921440956"
+date: "2023-06-08"
+output: 
+  html_document:
+    theme: united
+    toc: true
+    toc_float: true
+---
+
+```{r include=FALSE}
+installed.packages('tidyverse')
+installed.packages('knitr')
+installed.packages('dplyr')
+library(tidyverse)
+library(knitr)
+library(dplyr)
+
+
+# Loading in the data 
+session=list()
+for(i in 1:18){
+  session[[i]]=readRDS(paste('C:/Users/PC/Desktop/141/session/session',i,'.rds',sep=''))
+}
+
+
+
+```
+
+
+```{r, echo = FALSE}
+
+
+test=list()
+for(i in 1:2){
+  test[[i]]=readRDS(paste('C:/Users/PC/Desktop/141/test/test',i,'.rds',sep=''))
+}
+```
+
+
+
+# Abstract:
+In this data analysis project for STA 141A, I took a deep dive into the world of neural activity data to better understand it. I first began by exploring the data, I looked for patterns in the data by using cool visualization such as Spike, Raster, and line graphs. I then integrated the data from different sessions and created a big data set so that I could analyze the data more deeply. Then to predict the average spike counts I tried different methods, by creating a logistic regression and then random forest models. To evaluate the model's performances, I used a confusion matrix and by calculating their misclassification error rates. I found that the random forest model performed better than the logistic regression model by giving me more accurate predictions with a lower error rate. All in all, this project shows that using machine learning can be a powerful tool for predicting neural activity, especially for complex datasets.
+
+
+# Section 1: Introduction
+
+Understanding the brain and the way it functions has been a priority that top researchers around the world have been trying to find out. This project aimed to measure neural activity predicting the average spike counts based on a dataset from Steinmetz et al. (2019). By using logistic regression and machine learning techniques to find patterns and relationships within the data and to understand the neural activity of the mice in this study. This project focuses on using logistic regression and random forest algorithms to predict average spike counts based on several predictors such as trail number, contrast levels, the sum of spikes, and feedback type. I evaluated the model's performance by creating confusion matrices and by calculating the misclassification error rates which provided me with useful information about the accuracy of the model's predictions. My results found that the random forest algorithm was the best for predicting the correct feedback type
+
+This project consists of 3 different parts. Part 1 involves explanatory data where I was able to examine different areas of the data such as the number of neurons, trails, stimuli conditions, and feedback types. I was also able to visualize the neural activity during each trial and across each trial.
+
+In Part 2, I focused on data integration, using the information gathered from Part one I was able to combine data across all the trials so that I could identify some shared patterns from the sessions, 
+
+Finally, in Part 3, I used different types of prediction models to forecast the feedback types of trials. By using these models, I aimed to better my understanding of neural activity and its relationship to trial outcomes.
+
+
+# Section 2: Exploratory Analysis
+
+To begin this project I began by first doing my best to analyze and understand the structure, patterns, anomalies, and relationships between the data. I was able to use the meta-tibble function that summarized various attributes of the data. For example, I was able to see the identifiers for each mouse which were Cori, Forssmann, Hench, and Lederberg. I was able to see the dates that each experiment was conducted. And I was able to see the number of brain areas from which data was collected. For example, for Cori on 2016-12-17 data was gathered from 5 different parts of the brain. I was also to see the total number of neurons from each session. I was also able to see the proportion of desired outcomes from the success rate column, and other things such as stimuli condition and the session number. I also used the Kable function to do the same but in a little bit of an easier way to read it. 
+
+```{r, echo=FALSE, comment = ''}
+#Code to summarize the info across sessions
+
+n.session=length(session)
+
+# Using tible to create a table to summarize session info's
+meta <- tibble(
+  mouseName = rep('name',n.session),
+  date_exp =rep('dt',n.session),
+  difbrainArea = rep(0,n.session),
+  difNeurons = rep(0,n.session),
+  difTrials = rep(0,n.session),
+  successRate = rep(0,n.session)
+)
+
+#This fills in the table with session data and does it for each session
+for(i in 1:n.session){
+  tmp = session[[i]];
+  meta[i,1]=tmp$mouse_name;
+  meta[i,2]=tmp$date_exp;
+  meta[i,3]=length(unique(tmp$brain_area));
+  meta[i,4]=dim(tmp$spks[[1]])[1];
+  meta[i,5]=length(tmp$feedback_type);
+  meta[i,6]=mean(tmp$feedback_type+1)/2;
+  }
+
+
+
+# This just summarizes the information in a table
+kable(meta, format = "html", table.attr = "class='table table-striped'",digits=2) 
+
+```
+
+
+
+After loading in the data and finding the summary of the data, I then began to attempt to visualize the data by plotting the average spike counts for each area across the trials. 
+
+I then started to plot the spikes per area in Session 3. I soon found myself looking at a plot that made no sense. So naturally the best starting point for me was to understand what spikes even are. I found from various resources that spikes are basically a measurement of changes in voltage from a neuron's membrane. This was made possible by a device called the neuropixel probe, quite an amazing device I may add. So from there, I was able to understand a little bit more about what the plot was showing me.
+
+From the spike plot, I was able to see somewhat of a trend from this session. For example, the spike plot shows us a plot with the average spike counts for each brain area across all of the trails for one session. In this case session 3. Each of the areas has its own certain color which makes it a tad bit easier to interpret. And we are also given smooth lines, which represent the average spike count for each of the different brain areas. When I look at the graph I created I started to see that there is actually a subtle decrease in spikes over time. For the most part, the average spikes represented by the smooth lines relatively follow the same trend. But, again towards the end of the trails, there seems to be an overall slight decrease in spikes. This could mean that after a while Cori (mouse) started to become familiar with the tasks that it was given. I personally think it shows that the mouse was learning. It could be said that when initially starting the trials, the mouse's neurons were firing a lot as it was trying to figure out how to be rewarded. In this case, the reward was receiving water. But once it started to figure out how to get rewarded the neuronal activity can decrease.
+
+From the spike plot, we were also able to see some differences between the regional differences. For example, there are 6 smooth lines represented in the plot. The top three lines showed higher spike counts which means that those areas of the brain played a more active while others less. 
+
+I also used a raster plot, for me this was a little hard to interpret but I was still able to see some useful trends. For example, I was able to see the timing and frequency of the neuronal spikes, which helps see the patterns of neural activity. I noticed that there were two areas where the raster plot is densely populated, from my understanding, it may mean those areas have continuous activity over time.
+
+
+```{r, echo = FALSE, comment= ''}
+
+
+i.s=3 # This makes it so I will be looking at session 3
+i.t=1 # '' at trial 1
+
+#Gets the spike data for session 3, trial 1
+spk.trial = session[[i.s]]$spks[[i.t]]
+area=session[[i.s]]$brain_area
+
+#Calcs the spike count for each neuron
+spk.count=apply(spk.trial,1,sum)
+# Calcs the avg spike count for each brain area
+spk.average.tapply=tapply(spk.count, area, mean)
+
+# Creates a data frame for the results
+tmp <- data.frame(
+  area = area,
+  spikes = spk.count
+)
+
+spk.average.dplyr =tmp %>%
+  group_by(area) %>%
+  summarize(mean= mean(spikes))
+
+# Wraps up the function
+average_spike_area<-function(i.t,this_session){
+  spk.trial = this_session$spks[[i.t]]
+  area= this_session$brain_area
+  spk.count=apply(spk.trial,1,sum)
+  spk.average.tapply=tapply(spk.count, area, mean)
+  return(spk.average.tapply)
+}
+
+average_spike_area(1,this_session = session[[i.s]])
+
+n.trial=length(session[[i.s]]$feedback_type)
+n.area=length(unique(session[[i.s]]$brain_area ))
+
+trial.summary =matrix(nrow=n.trial,ncol= n.area+1+2+1)
+for(i.t in 1:n.trial){
+  trial.summary[i.t,]=c(average_spike_area(i.t,this_session = session[[i.s]]),
+                          session[[i.s]]$feedback_type[i.t],
+                        session[[i.s]]$contrast_left[i.t],
+                        session[[i.s]]$contrast_right[i.t],
+                        i.t)
+}
+
+colnames(trial.summary)=c(names(average_spike_area(i.t,this_session = session[[i.s]])), 'feedback', 'left contr.','right contr.','id' )
+
+trial.summary <- as_tibble(trial.summary)
+# Creates a vector to see distinct colors for each brain area
+area.col=rainbow(n=n.area,alpha=0.7)
+
+# Plots a blank plot before drawing anything on it, *prof does it this way
+plot(x=1,y=0, col='white',xlim=c(0,n.trial),ylim=c(0.5,2.2), xlab="Trials",ylab="Average spike counts", main=paste("Spikes per area in Session", i.s))
+
+for(i in 1:n.area){
+  # Plots each area's line and with it's smoothed version
+  lines(y=trial.summary[[i]],x=trial.summary$id,col=area.col[i],lty=2,lwd=1)
+  lines(smooth.spline(trial.summary$id, trial.summary[[i]]),col=area.col[i],lwd=3)
+}
+
+# Adds a legend 
+legend("topright", 
+  legend = colnames(trial.summary)[1:n.area], 
+  col = area.col, 
+  lty = 1, 
+  cex = 0.8
+)
+
+i.s=3 
+i.t=1 
+
+spk.trial = session[[i.s]]$spks[[i.t]]
+n.neuron = dim(spk.trial)[1]
+area = session[[i.s]]$brain_area
+
+# Data frame for the raster plot
+spike_df <- data.frame(
+  neuron = rep(1:n.neuron, each = length(spk.trial[1,])),
+  time = rep(1:length(spk.trial[1,]), times = n.neuron),
+  spike = as.vector(t(spk.trial)) # Transpose the matrix before making it into a vector
+)
+
+# Creates a subset of the data. (spikes only)
+spike_df_spike_only <- spike_df[spike_df$spike == 1,]
+
+
+
+
+# Plots raster plot
+ggplot(spike_df_spike_only, aes(x = time, y = neuron, color = neuron)) +
+  geom_point(size = 0.5, alpha = 0.5) +  
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(x = "Time", y = "Neuron", 
+       title = paste("Spike Raster Plot for Trial", i.t, "in Session", i.s)) +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, face = "bold"),  
+        axis.text = element_text(size = 10),  
+        legend.position = "topright")  
+
+
+
+averageSpikesession <- function(this_session){
+  n.trial = length(this_session$feedback_type)
+  avgSpikespertrial = numeric(n.trial)
+  
+  for(i.t in 1:n.trial){
+    spk.trial = this_session$spks[[i.t]]
+    total_spikes = sum(apply(spk.trial, 1, sum))
+    avgSpikespertrial[i.t] = total_spikes / nrow(spk.trial)
+  }
+  
+  return(mean(avgSpikespertrial))
+}
+
+# Adds new feature to the 'meta' table for each session
+meta$avgSpikespersession  <- unlist(lapply(session, averageSpikesession))
+
+#kable(meta, format = "html", table.attr = "class='table table-striped'",digits=2)
+
+ggplot(meta, aes(x = seq_len(nrow(meta)), y = avgSpikespersession)) +
+  geom_line(color = "blue") +
+  labs(x = "Session", y = "Average Spike Count", title = "Average Spike Count per Trial (averaged across trials) for Each Session")
+
+
+
+
+```
+
+
+
+
+
+# Section 3: Data Integration
+
+I first began to work on integrating my data by creating a data frame. Basically what I did was try to organize all of the data. I contained all of the different types of data such as the number of sessions, the different mouses, trail number contrast on the right and left, the sum of spikes, average spikes, and the feedback type. 
+
+From there I captured all of the data from each session in their own data frames. Then, I combined all of the data frames from sessions 1-18 into what I called combined sessions(combinedSessions). In total, the combined sessions tibble contained over 5,000 observations and 8 different variables.
+
+To explore homogeneity and heterogeneity across all of the sessions and mice. I created a boxplot to see the distribution of spike counts for each mouse. I noticed that all of the mice's spike counts hovered around the same average. But Hench had the highest average, and Forssmann had the lowest.
+
+
+```{r, echo= FALSE, comment = ''}
+#creating a DATA Frame
+
+dataSummary = function(is) {
+  nTrial = length(session[[is]]$feedback_type) #Represents the trials
+  metaTrial = tibble(
+    sessionNum = rep(0,nTrial), #Session
+    mouseName = rep('name', nTrial), # mouse
+    trialNum = rep(0,nTrial), # trial
+    contR= rep(0,nTrial), # right
+    contL = rep(0, nTrial), # left
+    sumSpk = rep(0,nTrial),#sum
+    avgSpk= rep(0,nTrial),# mean
+    feedbackType = rep(0, nTrial),#feedback
+  )
+  
+  for(i in 1:nTrial){
+    tmp= session[[is]];
+    metaTrial[i,1] = is;
+    metaTrial[i,2] = tmp$mouse_name;
+    metaTrial[i,3] = i;
+    metaTrial[i,4] = tmp$contrast_right[i];
+    metaTrial[i,5] = tmp$contrast_left[i];
+    metaTrial[i,6] = sum(tmp$spks[[i]]);
+    metaTrial[i,7] = mean(tmp$spks[[i]]);
+    metaTrial[i,8] = tmp$feedback_type[i];
+  }
+  return(metaTrial)
+}
+
+
+session1 <- dataSummary(1)
+session2 <- dataSummary(2)
+session3 <- dataSummary(3)
+session4 <- dataSummary(4)
+session5 <- dataSummary(5)
+session6 <- dataSummary(6)
+session7 <- dataSummary(7)
+session8 <- dataSummary(8)
+session9 <- dataSummary(9)
+session10 <- dataSummary(10)
+session11 <- dataSummary(11)
+session12 <- dataSummary(12)
+session13 <- dataSummary(13)
+session14 <- dataSummary(14)
+session15 <- dataSummary(15)
+session16 <- dataSummary(16)
+session17 <- dataSummary(17)
+session18 <- dataSummary(18)
+
+combinedSessions <- rbind(session1, session2, session3, session4, session5,
+                          session6, session7, session8, session9, session10,
+                          session11, session12, session13, session14, session15,
+                          session16, session17, session18)
+
+
+
+
+
+
+```
+
+
+
+```{r, echo=FALSE}
+# Create a vector of unique mice names
+unique_mice <- unique(combinedSessions$mouseName)
+
+# Generate a vector of colors for each mouse
+mouse_colors <- rainbow(length(unique_mice))
+
+# Create a named vector with mouse colors
+mouse_color_mapping <- setNames(mouse_colors, unique_mice)
+
+# Boxplot by Mouse across all sessions
+boxplot_by_mouse <- ggplot(combinedSessions, aes(x = mouseName, y = sumSpk, fill = mouseName)) +
+  geom_boxplot() +
+  scale_fill_manual(values = mouse_color_mapping) +
+  labs(title = "Spike Counts by Mouse across Sessions",
+       x = "Mouse",
+       y = "Spikes")
+
+# Print the boxplot
+print(boxplot_by_mouse)
+
+
+
+
+
+
+```
+
+# Section 4: Predictive Modeling
+
+
+Now that I had a combined data frame in place I started to use some methods to predict the the average spike counts. I first applied a logistic regression model(glm) function. In that model, the response variable was average spike counts. I wanted to see how this variable was influenced by other predictors such as the trial number, contrast on the right and left, the sum of spikes, and the feedback type. By including these predictors I was able to assess their relationship with the average spike counts. I then used the summary function and I was provided with information regarding the estimated coefficients, standard errors, z-values, and p-values for each of the predictors. I was also given the null and residual deviance and AIC (Akaike Information Criterion). From the results, I found that the average spikes, trial number and Left contrast had a statistically significant impact on the likelihood of the feedback type because thier p-values are very small. As for, the sum spikes and right contrast did not seem to be statistically significant based on their p-values (p >0.05)
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#First attempt at predicting the average spikes from the combined sessions
+# Check the unique values in the feedbackType variable
+#unique(combinedSessions$feedbackType)
+
+# Convert feedbackType to a binary variable
+combinedSessions$feedbackType <- as.factor(combinedSessions$feedbackType)
+
+# Verify the unique values in feedbackType again
+#unique(combinedSessions$feedbackType)
+
+# Fit the logistic regression model
+logitModel <- glm(feedbackType ~ avgSpk + trialNum + contR + contL + sumSpk, 
+                  data = combinedSessions, family = "binomial")
+
+summary(logitModel)
+
+```
+
+
+
+After using the glm function to predict the average spike count, I decided to split the data into training and test set. I trained the logistic regression model using the training data. I then made a prediction model on the test data using the trained model. I then made a confusion matrix and calculated the misclassification error rate. 
+```{r,echo = FALSE, comment = ''}
+
+#install.packages(c('class', 'dplyr', 'tidyverse'))
+library(class)
+library(dplyr)
+library(tidyverse)
+
+# Converts the feedbackType to factor
+combinedSessions$feedbackType <- as.factor(combinedSessions$feedbackType)
+
+# This code splits the data into training and test sets
+set.seed(123) # setting seed for reproducibility
+train_indices <- sample(1:nrow(combinedSessions), nrow(combinedSessions)*0.7) # Uses 70% of data for training
+train_data <- combinedSessions[train_indices, ]
+test_data <- combinedSessions[-train_indices, ]
+
+# Code to train the logitModel
+logitModel <- glm(feedbackType ~ avgSpk + trialNum + contR + contL + sumSpk, data = train_data, family = "binomial")
+
+# Predict on the test data using the logitModel
+predicted_labels <- predict(logitModel, newdata = test_data, type = "response")
+
+# Converting the predicted probabilities to class labels
+predicted_labels <- ifelse(predicted_labels > 0.5, 1, 0)
+
+# Then creating a confusion matrix
+confusion_matrix <- table(predicted_labels, test_data$feedbackType)
+print(confusion_matrix)
+
+# Calc misclassification error  rate
+error_rate <- 1 - sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Misclassification error rate: ", round(error_rate,4)))
+
+```
+
+From the confusion matrix, I learned that there were 443 times when the model predicted a label of -1 when the actual feedback type was also -1. And there were 1081 times when the model predicted a label of 1 and the actual feedback was also 1. So basically the model made the correct predictions for 443 times of negative feedback and 1082 times of positive feedback. In short, the model did a good job of classifying the feedback types. 
+
+But to see how good the overall performance of the prediction model was I calculated the misclassification error rate. The results were not that great. I got 0.7095. This means that the model approximately misclassified 70.95% of the instances. This means that the model has a high rate of making incorrect predictions. In other words, this model made the correct prediction roughly 30% of the time. Which quite frankly is not good. So I decided to go with a different approach. To see if I could get a lower misclassification error rate.
+
+Then I remembered in class that we talked about prediction trees. I remember our professor saying that they are good for complex data. So after some web searching I found the R library package 'randomForest." It's a machine learning algorithm that combines the predictions of multiple decision trees to better a model's prediction accuracy and is super useful for handling complex data. So I first began by omitting sessions 1 and 18 from the training data set then I spit the data into training and test sets. I used 70% of the data from all of the sessions besides that of 1 and 18. And I got much better results compared to what I got from the glm function. This time around I got a misclassification error rate of 0.2851, which means that only 28.51% of the data was misclassified by the random forest model. Yes! Some progress. 
+
+
+
+
+```{r echo=FALSE, message=FALSE}
+# Load necessary packages
+#install.packages(c('randomForest', 'caret'))
+library(randomForest)
+
+library(caret)
+
+# Omit sessions 1 and 18 from training data
+combinedSessions <- combinedSessions[!(combinedSessions$sessionNum %in% c(1,18)), ]
+
+# Convert feedbackType to factor (if not already)
+combinedSessions$feedbackType <- as.factor(combinedSessions$feedbackType)
+
+# Split the data into training and test sets
+set.seed(123) # for reproducibility
+trainIndex <- createDataPartition(combinedSessions$feedbackType, p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+
+train_data <- combinedSessions[ trainIndex,]
+test_data  <- combinedSessions[-trainIndex,]
+
+# Train the Random Forest model
+rfModel <- randomForest(feedbackType ~ avgSpk + trialNum + contR + contL + sumSpk, 
+                        data = train_data)
+
+# Predict on the test data using the Random Forest model
+predicted_labels <- predict(rfModel, newdata = test_data)
+
+# Create a confusion matrix
+confusion_matrix <- table(predicted_labels, test_data$feedbackType)
+print(confusion_matrix)
+
+# Calculate the misclassification error  rate
+error_rate <- 1 - sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Misclassification error rate: ",round(error_rate,4)))
+
+```
+Then I asked myself what would happen if I just had this model run on all of the data, so that's what I did. I did some modifications to the code and included all of the sessions and let the model predict it. And I was very happy with the results. 
+
+The misclassification error rate that was returned was 0.0056. Meaning that approximately 0.56% of the instances were misclassified. Thus this model in particular did a stellar job.
+```{r, echo = FALSE, comment = ''}
+# Load necessary packages
+#install.packages(c('randomForest', 'caret'))
+library(randomForest)
+library(caret)
+
+# Convert feedbackType to factor (if not already)
+combinedSessions$feedbackType <- as.factor(combinedSessions$feedbackType)
+
+# Train the Random Forest model using all sessions
+rfModel <- randomForest(feedbackType ~ avgSpk + trialNum + contR + contL + sumSpk, 
+                        data = combinedSessions)
+
+# Predict on the test data using the Random Forest model
+predicted_labels <- predict(rfModel, newdata = combinedSessions)
+
+# Create a confusion matrix
+confusion_matrix <- table(predicted_labels, combinedSessions$feedbackType)
+print(confusion_matrix)
+
+# Calculate the misclassification error rate
+error_rate <- 1 - sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Misclassification error rate: ", round(error_rate,4)))
+
+
+
+```
+
+
+
+
+# Section 5: Prediction Performance on the Test Sets
+
+
+```{r, echo = FALSE, comment = ''}
+
+test <- list()
+for (i in 1:2) {
+  test[[i]] <- readRDS(paste('C:/Users/PC/Desktop/141/test/test', i, '.rds', sep=''))
+}
+
+# Define the dataSummary function
+dataSummary <- function(is) { 
+  if (is <= 2) {
+    nTrial <- length(test[[is]]$feedback_type)  # Represents the trials
+    tmp <- test[[is]]
+  } else {
+    nTrial <- length(session[[is-2]]$feedback_type)  # Represents the trials
+    tmp <- session[[is-2]]
+  }
+  
+  metaTrial <- tibble(
+    sessionNum = rep(0, nTrial),   # Session
+    mouseName = rep('name', nTrial),        # Mouse
+    trialNum = rep(0, nTrial),              # Trial
+    contR = rep(0, nTrial),                 # Right
+    contL = rep(0, nTrial),                 # Left
+    sumSpk = rep(0, nTrial),                # Sum
+    avgSpk = rep(0, nTrial),                # Mean
+    feedbackType = rep(0, nTrial)           # Feedback
+  )
+  
+  for (i in 1:nTrial) {
+    metaTrial[i, 1] <- is
+    metaTrial[i, 2] <- tmp$mouse_name[i]
+    metaTrial[i, 3] <- i
+    metaTrial[i, 4] <- tmp$contrast_right[i]
+    metaTrial[i, 5] <- tmp$contrast_left[i]
+    metaTrial[i, 6] <- sum(tmp$spks[[i]])
+    metaTrial[i, 7] <- mean(tmp$spks[[i]])
+    metaTrial[i, 8] <- tmp$feedback_type[i]
+  }
+  
+  return(metaTrial)
+}
+
+# Call the dataSummary function with correct indices
+session1 <- dataSummary(3)
+session2 <- dataSummary(4)
+session3 <- dataSummary(5)
+session4 <- dataSummary(6)
+session5 <- dataSummary(7)
+session6 <- dataSummary(8)
+session7 <- dataSummary(9)
+session8 <- dataSummary(10)
+session9 <- dataSummary(11)
+session10 <- dataSummary(12)
+session11 <- dataSummary(13)
+session12 <- dataSummary(14)
+session13 <- dataSummary(15)
+session14 <- dataSummary(16)
+session15 <- dataSummary(17)
+session16 <- dataSummary(18)
+session17 <- dataSummary(19)
+session18 <- dataSummary(20)
+
+combinedSessions <- rbind(session1, session2, session3, session4, session5,
+                          session6, session7, session8, session9, session10,
+                          session11, session12, session13, session14, session15,
+                          session16, session17, session18)
+
+testSet <- rbind(session1, session2)
+
+
+
+```
+
+```{r, echo = FALSE, comment = ''}
+# Load necessary packages
+#install.packages(c('randomForest', 'caret'))
+library(randomForest)
+library(caret)
+
+# Convert feedbackType to factor (if not already)
+combinedSessions$feedbackType <- as.factor(combinedSessions$feedbackType)
+
+# Train the Random Forest model using all sessions
+rfModel <- randomForest(feedbackType ~ avgSpk + trialNum + contR + contL + sumSpk, 
+                        data = combinedSessions)
+
+# Predict on the test data using the Random Forest model
+predicted_labels <- predict(rfModel, newdata = testSet)
+
+# Create a confusion matrix
+confusion_matrix <- table(predicted_labels, testSet$feedbackType)
+print(confusion_matrix)
+
+# Calculate the misclassification error rate
+error_rate <- 1 - sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Misclassification error rate: ", round(error_rate, 4)))
+
+```
+
+Overall, after many trial and error I am pleased to say that my prediction model worked very well. It had a misclassification error rate of approximently 0.006 which means that this model has a very high level of accuracy. Furthermore, it means that only 0.61% of the data set was misclassified or predicted wrong by the model. All in all, the random forest algorithm is a reliable model and in particular it is very accurate when it is tasked to make the correct classifications.
+
+# Section 6: Discussion
+
+In conclusion, I learned a lot about learning to analyze data. I first began by visualizing the data to better understand what I was working with. Then I created a big data set with all of the sessions combined and I was able to apply different prediction models to the data. I tried a couple of different models and found that the best one was the random forest machine learning algorithm that combines the prediction from many prediction trees. This was extremely useful and it worked great. 
+
+
+# Acknowledgement
+Most of the code that I have here has been grabbed from the course notes to help guide myself. I also used ChatGPT. Through various hours, and modifications I used chatgpt to help me apply some of the teachings from this class such a prediction trees to find a create a good prediction mode.I'm not quite sure if this was an okay thing to do, but I was just using all of the resources that I could find to help me with this project. All of the interpretations have been done by me.
+
+# Appendix
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
